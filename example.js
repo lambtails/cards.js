@@ -22,16 +22,16 @@ discardPile.x += 50;
 
 
 //Let's deal when the Deal button is pressed:
-$('#deal').click(function() {
+document.getElementById("deal").addEventListener("click", ()=>{
 	//Deck has a built in method to deal to hands.
-	$('#deal').hide();
+	document.getElementById("deal").style.display = "none";
 	deck.deal(5, [upperhand, lowerhand], 50, function() {
 		//This is a callback function, called when the dealing
 		//is done.
 		discardPile.addCard(deck.topCard());
 		discardPile.render();
 	});
-});
+})
 
 
 //When you click on the top card of a deck, a card is added

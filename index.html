@@ -2,43 +2,8 @@
 <html>
 	<head>
 		<title>cards.js - Write card games in Javascript.</title>
+		<link rel="stylesheet" href="example.css"/>
 		<style>
-			html { background-color:#092E20; }
-			body { 
-				position:relative;
-				border-radius:8px; 
-				box-shadow:black 0px 0px 2px; 
-				width: 600px; 
-				background:#FFF; 
-				margin:20px auto; 
-				border:solid 1px black; 
-				font-family: arial, sans-serif; 
-				padding:50px;  
-			}
-			#buttons {
-				text-align:center;
-			}
-			
-			a img {
-				position: absolute; 
-				top: 0; 
-				right: 0; 
-				border: 0;			
-			}
-			button {
-				height:30px;
-				width:100px;
-				margin:8px auto;
-			}
-			img.preload {
-				display:none;
-			}
-			h1 {
-				font-size:60px;
-				text-align:center;
-				padding:0px;
-				margin:0px;
-			}
 			code {
 				background-color:#F9FCA2;
 				border:dotted 1px black;
@@ -50,36 +15,7 @@
 				padding:7px;
 				display:none;
 			}
-			
-			#card-table {
-				background-color:green;
-				height:400px;
-				width:600px;
-				border:solid 6px brown;
-				border-radius:8px;
-				-webkit-border-radius:8px;
-				-moz-border-radius:8px;
-				-ms-border-radius:8px;
-				-o-border-radius:8px;
-				box-shadow:#111 1px 1px 2px;
-			}
-			a:visited {color:blue;}
-			
-			footer {
-				font-size : 12px;
-				color:grey;
-				margin:10px;
-			}
-			
-			footer a, footer a:visited{
-				color:grey;
-			}
-			
-			footer a:hover {
-				color:black;
-			}
 		</style>
-		<script src="jquery-1.7.min.js"></script>
 		<script src="deckType.js"></script>
 		<script src="cards.js"></script>
 		<script>
@@ -87,22 +23,22 @@
 			var max = 0;
 			function stateChange() {
 				if (exampleCounter == 1) {
-					$('#exec').attr('disabled', 'disabled');
+					document.getElementById("exec").setAttribute('disabled', 'disabled');
 				} else {
-					$('#prev').removeAttr('disabled');
+					document.getElementById("prev").removeAttribute('disabled');
 				}
 				if (exampleCounter > max) {
-					$('#exec').removeAttr('disabled');
+					document.getElementById("exec").removeAttribute('disabled');
 				} else {
-					$('#exec').attr('disabled', 'disabled');
+					document.getElementById("exec").setAttribute('disabled', 'disabled');
 				}
 				if (exampleCounter <= max) {
-					$('#next').removeAttr('disabled');
+					document.getElementById("next").removeAttribute('disabled');
 				} else {
-					$('#next').attr('disabled', 'disabled');
+					document.getElementById("next").setAttribute('disabled', 'disabled');
 				}
-				$('code').hide();
-				$('code#ex' + exampleCounter).css('display', 'block');
+				document.querySelectorAll('code').forEach(code=>{code.style.display="none"});
+				document.querySelector('code#ex' + exampleCounter).style.display = 'block';
 			}
 			function next() {
 				exampleCounter++;
@@ -113,7 +49,7 @@
 				stateChange();
 			}
 			function execute() {
-				var code = $('code#ex' + exampleCounter).text();
+				var code = document.querySelector('code#ex' + exampleCounter).textContent;
 				eval(code);
 				max = exampleCounter;
 				stateChange();
@@ -122,8 +58,7 @@
 	</head>
 	<body>
 		<h1>Cards.js</h1>
-		<h3>The easiest way to write card games in Javascript</h3>
-		<a href="https://github.com/einaregilsson/cards.js"><img src="https://s3.amazonaws.com/github/ribbons/forkme_right_orange_ff7600.png" alt="Fork me on GitHub"></a>		
+		<h3>The easiest way to write card games in Javascript, <i>without jQuery!</i></h3>
 		<p>cards.js is a library to write card games in javascript. It's not a framework, it does not try to tell you how to write your game logic, it's only about rendering playing cards, animating them and giving you a nice and simple way to use them in your games. Below you can see and play with an interactive demo. We also have <a href="javascript:alert('not yet though')">documentation</a> and <a href="javascript:alert('coming soon');">annotated source code for a full game</a>, a simplified
 		version of Crazy Eights called Borderline Eights.</p>
 		<img class="preload" src="img/cards.png"/>

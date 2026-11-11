@@ -23,7 +23,7 @@ var cards = (function() {
   var end = start + 12;
 
   function mouseEvent(ev) {
-    var card = $(this).data('card');
+    var card = ev.target.card;
     if (card.container) {
       var handler = card.container._click;
       if (handler) {
@@ -57,9 +57,9 @@ var cards = (function() {
         break;
     }
 
-    opt.table = $(opt.table)[0];
-    if ($(opt.table).css('position') == 'static') {
-      $(opt.table).css('position', 'relative');
+    opt.table = document.querySelector(opt.table);
+    if (opt.table.style.position == 'static') {
+      opt.table.style.position = 'relative';
     }
     for (let l = 0; l < opt.loop; l++)
       for (var i = start; i <= end; i++) {
@@ -75,7 +75,7 @@ var cards = (function() {
       all.push(new Card('rj', 0, opt.table));
     }
 
-    $('.card').click(mouseEvent);
+    document.querySelectorAll('.card').forEach((card)=>{card.addEventListener("click", mouseEvent)})
     shuffle(all);
   }
 
@@ -103,13 +103,15 @@ var cards = (function() {
       this.rank = rank;
       this.name = suit.toUpperCase() + rank;
       this.faceUp = false;
-      this.el = $('<div/>').css({
-        width: opt.cardSize.width,
-        height: opt.cardSize.height,
-        "background-image": 'url(' + opt.cardsUrl + ')',
-        position: 'absolute',
-        cursor: 'pointer'
-      }).addClass('card').data('card', this).appendTo($(table));
+      this.el = document.createElement("div");
+      this.el.style.width = `${opt.cardSize.width}px`;
+      this.el.style.height = `${opt.cardSize.height}px`;
+      this.el.style.backgroundImage = `url(${opt.cardsUrl})`;
+      this.el.style.position = 'absolute';
+      this.el.style.cursor = 'pointer';
+      this.el.classList.add("card");
+      this.el.card = this;
+      table.appendChild(this.el);
       this.showCard();
       this.moveToFront();
     },
@@ -123,16 +125,15 @@ var cards = (function() {
         top: y - (opt.cardSize.height / 2),
         left: x - (opt.cardSize.width / 2)
       };
-      $(this.el).animate(props, speed || opt.animationSpeed, callback);
+      var speed = speed || opt.animationSpeed;
+      this.el.style.transition = `top ${speed}ms, left ${speed}ms`;
+      this.el.style.top = `${props.top}px`;
+      this.el.style.left = `${props.left}px`;
+      window.setTimeout(speed, callback);
     },
 
     rotate: function(angle) {
-      $(this.el)
-        .css('-webkit-transform', 'rotate(' + angle + 'deg)')
-        .css('-moz-transform', 'rotate(' + angle + 'deg)')
-        .css('-ms-transform', 'rotate(' + angle + 'deg)')
-        .css('transform', 'rotate(' + angle + 'deg)')
-        .css('-o-transform', 'rotate(' + angle + 'deg)');
+      this.el.style.transform = `rotate(${angle}deg)`;
     },
 
     showCard: function() {
@@ -152,17 +153,19 @@ var cards = (function() {
       xpos = -rank * opt.cardSize.width;
       ypos = -offsets[this.suit] * opt.cardSize.height;
       this.rotate(0);
-      $(this.el).css('background-position', xpos + 'px ' + ypos + 'px');
+      this.el.style.backgroundPositionX = `${xpos}px`;
+      this.el.style.backgroundPositionY = `${ypos}px`;
     },
 
     hideCard: function(position) {
       var y = opt.cardback == 'red' ? 0 * opt.cardSize.height : -1 * opt.cardSize.height;
-      $(this.el).css('background-position', '0px ' + y + 'px');
+      this.el.style.backgroundPositionX = `0px`;
+      this.el.style.backgroundPositionY = `${y}px`;
       this.rotate(0);
     },
 
     moveToFront: function() {
-      $(this.el).css('z-index', zIndexCounter++);
+      this.el.style.zIndex = zIndexCounter++;
     }
   };
 
@@ -171,7 +174,7 @@ var cards = (function() {
   }
 
   Container.prototype = new Array();
-  Container.prototype.extend = function(obj) {
+    Container.prototype.extend = function(obj) {
     for (var prop in obj) {
       this[prop] = obj[prop];
     }
@@ -204,8 +207,8 @@ var cards = (function() {
 
     init: function(options) {
       options = options || {};
-      this.x = options.x || $(opt.table).width() / 2;
-      this.y = options.y || $(opt.table).height() / 2;
+      this.x = options.x || opt.table.clientWidth / 2;
+      this.y = options.y || opt.table.clientHeight / 2;
       this.faceUp = options.faceUp;
     },
 
@@ -238,8 +241,8 @@ var cards = (function() {
         var card = this[i];
         zIndexCounter++;
         card.moveToFront();
-        var top = parseInt($(card.el).css('top'));
-        var left = parseInt($(card.el).css('left'));
+        var top = parseInt(card.el.style.top);
+        var left = parseInt(card.el.style.left);
         if (top != card.targetTop || left != card.targetLeft) {
           var props = {
             top: card.targetTop,
@@ -247,10 +250,12 @@ var cards = (function() {
             queue: false
           };
           if (options.immediate) {
-            $(card.el).css(props);
+            card.el.style.removeProperty('transition');
           } else {
-            $(card.el).animate(props, speed);
+            card.el.style.transition = `top ${speed}ms, left ${speed}ms`;
           }
+          card.el.style.top = `${card.targetTop}px`;
+          card.el.style.left = `${card.targetLeft}px`;
         }
       }
       var me = this;

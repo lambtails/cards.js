@@ -40,6 +40,7 @@ h1 {
 
 #card-table {
 	background-color:green;
+	position: relative;
 	height:400px;
 	width:600px;
 	border:solid 6px brown;
