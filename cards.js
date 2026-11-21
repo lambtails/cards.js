@@ -252,7 +252,7 @@ var cards = (function() {
           if (options.immediate) {
             card.el.style.removeProperty('transition');
           } else {
-            card.el.style.transition = `top ${speed}ms, left ${speed}ms`;
+            card.el.style.transition = `top ${speed}ms, left ${speed}ms, transform ${speed/5}ms, filter ${speed/5}ms`;
           }
           card.el.style.top = `${card.targetTop}px`;
           card.el.style.left = `${card.targetLeft}px`;
