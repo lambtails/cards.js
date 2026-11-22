@@ -9,53 +9,150 @@
 	'cards.js' library by Einar Egilsson, used under the MIT license (https://github.com/einaregilsson/cards.js/blob/gh-pages/LICENSE)
 */
 
+const globalSpeed = 300;
+var deck, hand, towerFloor, discardPile;
+
+
 class TowerFloor {
 	rows = 3;
 	cols = 3;
 
 	// Each tower floor has a series of rooms
 	constructor() {
-		this.rooms = Array(rows * cols);
+		this.rooms = new Array();
+		this.roomCount = 0;
+	}
+
+	dealFloor() {
+		/*
+			if (i >= 7) {
+				towerFloor.rooms[i][0].el.classList.add("room");
+				towerFloor.rooms[i].click(clickRoom);
+			}*/
+
+		// Reveal the last two or three cards in the floor
+		// This is where the player starts fighting
+		let revealCount = 2;
+		if (this.roomCount < 8) {
+			revealCount = 3;
+		}
+		if (this.roomCount < revealCount) {
+			revealCount = this.roomCount;
+		}
+		for (let i=0; i<revealCount; i++) {
+			this.rooms[this.roomCount-1-i].reveal();
+		}
+	}
+
+	addRoom(room) {
+		this.rooms.push(room);
+		this.roomCount += 1;
 	}
 
 	getRoom(x, y) {
-		if (x < 0 || y < 0 || x >= cols || y >= rows) {
+		if (x < 0 || y < 0 || x >= this.cols || y >= this.rows) {
 			throw "Invalid room coordinates";
 		}
-		return this.rooms[x + y*cols];
+		return this.rooms[x + y*this.cols];
+	}
+
+	discardRoom(x, y) {
+		this.rooms[x + y*this.cols] = undefined;
+		this.roomCount -= 1;
 	}
 }
 
-class TowerRoom {
+class TowerRoom extends cards.Hand {
 	// Rooms can be completed using a weapon of the same or higher value
-	constructor(card, towerFloor, x, y) {
-		this.card = card;
+	constructor(options, card, towerFloor, roomX, roomY) {
+		super(options);
 		this.towerFloor = towerFloor;
-		this.x = x;
-		this.y = y;
-		this.faceUp = false;
-		this.adjacentRooms = [];
+		this.roomX = roomX;
+		this.roomY = roomY;
+
+		// Add card
+		card.el.classList.add('floor');
+		card.el.setAttribute("data-room", roomX + roomY*3);
+		card.steal = (hand) => {this.steal(hand)};
+		this.addCard(card);
+
+		// Render
+		window.setTimeout(()=>{
+			this.render();
+		}, 50 * roomX + 100 * roomY);
+	}
+
+	reveal() {
+		// Reveal the card and enable clicking logic
+		if (this.faceUp == undefined || this.faceUp == false) {
+			this.click(this.onClick);
+			this.faceUp = true;
+		}
+	}
+
+	steal(hand) {
+		// Remove from the tower floor
+		this.towerFloor.discardRoom(this.roomX, this.roomY);
+
+		// Move card to hand
+		let card = this[0];
+		card.el.classList.remove("floor");
+		card.el.classList.add("hand");
+		card.container = hand;
+
+		// Delay animation slightly
+		window.setTimeout(()=>{
+			card.moveTo(hand.x, hand.y, globalSpeed);
+		}, globalSpeed);
+	}
+
+	discard() {
+		// Remove from the tower floor
+		this.towerFloor.discardRoom(this.roomX, this.roomY);
+
+		// Move card to discard pile
+		let card = this[0];
+		card.el.classList.remove("floor");
+		card.container = undefined;
+
+		// Delay animation slightly
+		window.setTimeout(()=>{
+			card.moveTo(discardPile.x, discardPile.y, globalSpeed);
+		}, globalSpeed);
 	}
 
 	getNeighbours() {
 		const neighbours = [];
-		if (x > 0) {
-			neighbours.push(this.towerFloor.getRoom(x - 1, y));
+		if (this.roomX > 0) {
+			neighbours.push(this.towerFloor.getRoom(this.roomX - 1, this.roomY));
 		}
-		if (y > 0) {
-			neighbours.push(this.towerFloor.getRoom(x, y - 1));
+		if (this.roomY > 0) {
+			neighbours.push(this.towerFloor.getRoom(this.roomX, this.roomY - 1));
 		}
-		if (x < TowerFloor.cols - 1) {
-			neighbours.push(this.towerFloor.getRoom(x + 1, y));
+		if (this.roomX < this.towerFloor.cols - 1) {
+			neighbours.push(this.towerFloor.getRoom(this.roomX + 1, this.roomY));
 		}
-		if (y < TowerFloor.rows - 1) {
-			neighbours.push(this.towerFloor.getRoom(x, y + 1));
+		if (this.roomY < this.towerFloor.rows - 1) {
+			neighbours.push(this.towerFloor.getRoom(this.roomX, this.roomY + 1));
 		}
 		return neighbours;
 	}
 
-	onClick() {
+	onClick(roomCard) {
+		let selected = roomCard.el.classList.contains("selected");
+		document.querySelectorAll(".card.floor.selected").forEach((el)=>{
+			el.classList.remove("selected");
+		})
+		if (selected == false) {
+			// Select the room card
+			roomCard.el.classList.add("selected");
 
+			// Check if a hand card is selected
+			let card = document.querySelector(".card.hand.selected")
+			if (card != undefined) {
+				attack(card.card, roomCard);
+			}
+		}
 	}
 }
 
@@ -64,104 +161,168 @@ class Hand {
 	constructor() {
 		this.weapons = [];
 	}
+
+	dealStartingHand() {
+		for (let i=0; i<4; i++) {
+			this.dealWeapon(i);
+		}
+	}
+
+	dealWeapon(slot) {
+		const options = {
+			x: cards.options.table.clientWidth / 2 - 112 + (slot * 75),
+			y: 420,
+			faceUp: true
+		}
+		this.weapons.push(new Weapon(options, deck.topCard()));
+	}
 }
 
-class Weapon {
+class Weapon extends cards.Hand {
 	// A weapon represents any card in your possession
-    constructor() {
-        // Initialize properties here
-    }
+	constructor(options, card) {
+		super(options)
+		
+		// Add card to the weapon
+		card.el.classList.add("hand");
+		this.addCard(card);
 
-	onClick() {
+		// Add click event listener
+		this.click(this.onClick);
 
+		// Render
+		this.render();
+	}
+	
+	onClick(card) {
+		let selected = card.el.classList.contains("selected");
+		document.querySelectorAll(".card.hand.selected").forEach((el)=>{
+			el.classList.remove("selected");
+		})
+		if (selected == false) {
+			// Select the hand card
+			card.el.classList.add("selected");
+
+			// Check if a room card is selected
+			let room = document.querySelector(".card.floor.selected")
+			if (room != undefined) {
+				attack(card, room.card);
+			}
+		}
 	}
 }
 
 
 // Initialise cards.js library usage (table, deck, etc)
-cards.init({table:'#card-table', type:STANDARD, blackJoker:true, redJoker:true});
-var deck, hand, discardPile;
-const globalSpeed = 300;
+function initSerpentsTower() {
+	cards.init({table:'#card-table', type:STANDARD, blackJoker:true, redJoker:true, acesHigh:true});
 
-function clickHand(card) {
-	let selected = card.el.classList.contains("selected");
-	document.querySelectorAll(".card.hand.selected").forEach((el)=>{
-		el.classList.remove("selected");
-	})
-	if (selected == false) {
-		// Select the hand card
-		card.el.classList.add("selected");
-
-		// Check if a room card is selected
-		let room = document.querySelector(".card.room.selected")
-		if (room != undefined) {
-			attack(card, room.card);
-		}
-	}
+	// Create deck, discard pile, hand and tower
+	deck = new cards.Deck({x: 100, y: 170});
+	hand = new Hand();
+	discardPile = new cards.Hand({x: 500, y: 170, faceUp:true});
+	towerFloor = new TowerFloor();
+	
+	// Add all cards to deck
+	deck.addCards(cards.all);
+	cards.shuffle(deck);
+	deck.render({immediate:true});
 }
 
-function clickRoom(room) {
-	let selected = room.el.classList.contains("selected");
-	document.querySelectorAll(".card.room.selected").forEach((el)=>{
-		el.classList.remove("selected");
-	})
-	if (selected == false) {
-		// Select the room card
-		room.el.classList.add("selected");
+function newGame() {
+	// Deal starting hand
+	hand.dealStartingHand();
+	
+	// Create 9 cards for the tower floor
+	window.setTimeout(()=>{
+		for (let i=0; i<9; i++) {
+			let roomX = i % 3;
+			let roomY = Math.floor(i / 3);
 
-		// Check if a hand card is selected
-		let card = document.querySelector(".card.hand.selected")
-		if (card != undefined) {
-			attack(card.card, room);
+			const options = {
+				x: cards.options.table.clientWidth / 2 - 75 + roomX * 75,
+				y: 70 + roomY * 100
+			}; 
+			towerFloor.addRoom(new TowerRoom(options, deck.topCard(), towerFloor, roomX, roomY))
 		}
-	}
+
+		towerFloor.dealFloor();
+	}, 500);
 }
+
+initSerpentsTower();
+newGame();
 
 function attack(card, room) {
-	// Deselect everything
+	// Get ranks
+	let cardRank = card.rank;
+	let roomRank = room.rank;
+
+	// High aces
+	if (cardRank === 1) {
+		cardRank = 14;
+	}
+	if (roomRank === 1) {
+		roomRank = 14;
+	}
+
+	// Deselect all cards
 	document.querySelectorAll(".card.selected").forEach((el)=>{
-		el.classList.remove("selected", "room", "hand", "floor");
+		el.classList.remove("selected");
 	});
-	room.el.classList.add("hand");
-	card.rotate(Math.random() * 20 - 10);
 
-	// Move cards around
-	let cardX = card.container.x;
-	let cardY = card.container.y;	
-	card.moveTo(room.container.x, room.container.y, globalSpeed);
-	window.setTimeout(()=>{
-		room.moveTo(cardX, cardY, globalSpeed);
-		card.moveTo(discardPile.x, discardPile.y, globalSpeed);
-	}, globalSpeed)
+	// Check if card outranks room, or is a joker (jokers can always be swapped)
+	if (cardRank >= roomRank || roomRank == 0 || cardRank == 0) {
+		// Reveal neighbouring cards
+		let neighbours = room.container.getNeighbours();
+		window.setTimeout(()=>{
+			for (let neighbour of neighbours) {
+				if (neighbour !== undefined) {
+					neighbour.reveal();
+					neighbour.render();
 
-	// Remove card from hand
-	let newHand = card.container;
-	room.container = newHand;
-	room.container[0] = room;
-	card.container = undefined;
+					let count = 0;
+					for (let n of neighbour.getNeighbours()) {
+						count += n !== undefined;
+					}
+					if (count == 0) {
+						neighbour.discard();
+					}
+				}
+			}
+		}, globalSpeed);
+		
+		// Steal room and place in hand
+		let handContainer = card.container;
+		let roomContainer = room.container;
+		room.steal(handContainer);
+		
+		// Move room to hand, hand to discard
+		card.el.classList.remove("hand");
+		//room.el.classList.remove("floor");
+		//room.el.classList.add("hand");
 
-	// Reveal neighbouring cards
-	window.setTimeout(()=>{
-		let dataRoom = parseInt(room.el.getAttribute("data-room"));
-		if (dataRoom > 2) {
-			flip(dataRoom - 3);
-		}
-		if (dataRoom < 6) {
-			flip(dataRoom + 3);
-		}
-		if (dataRoom % 3 != 0) {
-			flip(dataRoom - 1);
-		}
-		if (dataRoom % 3 != 2) {
-			flip(dataRoom + 1);
-		}
-	}, globalSpeed * 2);
+		// Move cards around
+		card.moveTo(roomContainer.x, roomContainer.y, globalSpeed);
+		window.setTimeout(()=>{
+			card.rotate(Math.random() * 20 - 10);
+			card.moveTo(discardPile.x, discardPile.y, globalSpeed);
+		}, globalSpeed)
+
+		
+
+		// Remove card from hand
+		//room.container = newHand;
+		//room.container[0] = room;
+		card.container = undefined;
+	}
 }
 
 function flip(dataRoom) {
-	let roomCard = document.querySelector(`.floor[data-room='${dataRoom}']`);
-	if (roomCard != undefined && roomCard != null) {
-		roomCard = roomCard.card;
+	let elem = document.querySelector(`.floor[data-room='${dataRoom}']`);
+	if (elem != undefined && elem != null && elem.card != undefined && elem.card != null) {
+		let roomCard = elem.card;
+		let towerFloor = roomCard.container;
 
 		if (roomCard.el.classList.contains("room")) {
 			// Room is already revealed, so we check if neighbours still exist or not
@@ -182,71 +343,19 @@ function flip(dataRoom) {
 			if (neighbourCount == 0) {
 				roomCard.moveTo(discardPile.x, discardPile.y, globalSpeed);
 				roomCard.rotate(Math.random() * 20 - 10);
-				roomCard.el.classList.remove("selected", "room", "hand", "floor");
-				roomCard.el.clearAttribute("data-room");
+				roomCard.el.classList.remove("selected", "hand", "floor");
+				roomCard.el.removeAttribute("data-room");
 			}
 		} else {
 			// Reveal room
 			roomCard.showCard();
-			roomCard.container.click(clickRoom);
-			roomCard.el.classList.add("room");
+			//roomCard.container.click(clickRoom);
+			//roomCard.el.classList.add("room");
 		}
 	}
 }
 
-function newGame() {
-	// Create new deck
-	deck = new cards.Deck({x: 100, y: 170});
-	deck.addCards(cards.all);
-	cards.shuffle(deck);
-	deck.render({immediate:true});
 
-	// Create discard pile
-	discardPile = new cards.Hand({x: 500, y: 170, faceUp:true});
-
-	// Deal starting hand
-	hand = [] //new cards.Hand({faceUp:true});
-	for (let i=0; i<4; i++) {
-		const options = {
-			x: cards.options.table.clientWidth / 2 - 112 + (i * 75),
-			y: 420,
-			faceUp: true
-		}
-		hand.push(new cards.Hand(options));
-		hand[i].addCard(deck.topCard());
-		hand[i][0].el.classList.add("hand");
-		hand[i].click(clickHand);
-		hand[i].render();
-	}
-	
-	// Create 9 cards for the tower floor
-	window.setTimeout(()=>{
-		towerFloor = [];
-		for (let i=0; i<9; i++) {
-			let cardx = i % 3;
-			let cardy = Math.floor(i / 3);
-
-			const options = {
-				x: cards.options.table.clientWidth / 2 - 75 + cardx * 75,
-				y: 70 + cardy * 100,
-				faceUp: i >= 7
-			}; 
-			towerFloor.push(new cards.Hand(options));
-			towerFloor[i].addCard(deck.topCard());
-			towerFloor[i][0].el.classList.add("floor");
-			towerFloor[i][0].el.setAttribute("data-room", i);
-			if (i >= 7) {
-				towerFloor[i][0].el.classList.add("room");
-				towerFloor[i].click(clickRoom);
-			}
-
-			window.setTimeout(()=>{
-				towerFloor[i].render();
-			}, 50 * cardx + 100 * cardy);
-		}
-	}, 500);
-}
-newGame();
 
 /*
 //Now lets create a couple of hands, one face down, one face up.
