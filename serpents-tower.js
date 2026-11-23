@@ -8,11 +8,35 @@
 
 	'cards.js' library by Einar Egilsson, used under the MIT license (https://github.com/einaregilsson/cards.js/blob/gh-pages/LICENSE)
 */
-
 const globalSpeed = 300;
 var deck, hand, towerFloor, discardPile;
+var initialised = false;
 
 
+/// MODIFICATIONS TO CARDS.JS
+cards.Container.prototype.extend({
+	clearCards: function() {
+		for (let i=0; i<this.length; i++) {
+			let card = this[i];
+			card.el.classList.add("hidden");
+		}
+		this.length = 0;
+	},
+	
+	removeCardByName: function(name) {
+		for (var i = 0; i < this.length; i++) {
+			if (this[i].name == name) {
+				this[i].el.classList.add("hidden");
+				this.splice(i, 1);
+				return true;
+			}
+		}
+		return false;
+	}
+});
+
+
+// SERPENTS TOWER CLASSES
 class TowerFloor {
 	rows = 3;
 	cols = 3;
@@ -24,11 +48,20 @@ class TowerFloor {
 	}
 
 	dealFloor() {
-		/*
-			if (i >= 7) {
-				towerFloor.rooms[i][0].el.classList.add("room");
-				towerFloor.rooms[i].click(clickRoom);
-			}*/
+		// Deal 9 more cards
+		for (let i=0; i<9; i++) {
+			const roomX = i % 3;
+			const roomY = Math.floor(i / 3);
+			const topCard = deck.topCard();
+			const options = {
+				x: cards.options.table.clientWidth / 2 - 75 + roomX * 75,
+				y: 70 + roomY * 100
+			};
+			
+			if (topCard !== undefined) {
+				this.addRoom(new TowerRoom(options, topCard, this, roomX, roomY));
+			}
+		}
 
 		// Reveal the last two or three cards in the floor
 		// This is where the player starts fighting
@@ -59,6 +92,23 @@ class TowerFloor {
 	discardRoom(x, y) {
 		this.rooms[x + y*this.cols] = undefined;
 		this.roomCount -= 1;
+
+		if (this.roomCount == 0) {
+			window.setTimeout(()=>{
+				this.rooms.length = 0;
+				this.dealFloor();
+			}, globalSpeed);
+		}
+	}
+
+	clearCards() {
+		for (let i=0; i<this.rooms.length; i++) {
+			if (this.rooms[i] !== undefined) {
+				this.rooms[i].clearCards();
+			}
+		}
+		this.rooms.length = 0;
+		this.roomCount = 0;
 	}
 }
 
@@ -99,10 +149,12 @@ class TowerRoom extends cards.Hand {
 		card.el.classList.remove("floor");
 		card.el.classList.add("hand");
 		card.container = hand;
+		hand[0] = card;
 
 		// Delay animation slightly
 		window.setTimeout(()=>{
 			card.moveTo(hand.x, hand.y, globalSpeed);
+			card.moveToFront();
 		}, globalSpeed);
 	}
 
@@ -114,10 +166,12 @@ class TowerRoom extends cards.Hand {
 		let card = this[0];
 		card.el.classList.remove("floor");
 		card.container = undefined;
+		discardPile.push(card);
 
 		// Delay animation slightly
 		window.setTimeout(()=>{
 			card.moveTo(discardPile.x, discardPile.y, globalSpeed);
+			card.moveToFront();
 		}, globalSpeed);
 	}
 
@@ -176,6 +230,13 @@ class Hand {
 		}
 		this.weapons.push(new Weapon(options, deck.topCard()));
 	}
+
+	clearCards() {
+		for (let i=0; i<this.weapons.length; i++) {
+			this.weapons[i].clearCards();
+		}
+		this.weapons.length = 0;
+	}
 }
 
 class Weapon extends cards.Hand {
@@ -222,36 +283,62 @@ function initSerpentsTower() {
 	hand = new Hand();
 	discardPile = new cards.Hand({x: 500, y: 170, faceUp:true});
 	towerFloor = new TowerFloor();
-	
-	// Add all cards to deck
-	deck.addCards(cards.all);
-	cards.shuffle(deck);
-	deck.render({immediate:true});
 }
 
-function newGame() {
-	// Deal starting hand
+function newGame(difficulty=0) {
+	if (initialised === false) {
+		initSerpentsTower();
+		initialised = true;
+	}
+
+	// Make sure cards aren't hidden
+	document.querySelectorAll(".card").forEach((elem)=>{
+		elem.classList.remove('hidden', 'hand', 'floor');
+	})
+
+	// Add cards to deck
+	deck.addCards(cards.all);
+
+	// Set game difficulty (number of jokers)
+	if (difficulty === 0) {
+		// Easy, two jokers in deck
+	} else if (difficulty === 1) {
+		// Medium, one joker in deck
+		deck.removeCardByName('RJ0');
+	} else if (difficulty === 2) {
+		// Hard, no jokers
+		deck.removeCardByName('RJ0');
+		deck.removeCardByName('BJ0');
+	}
+
+	// Shuffle and deal starting hand
+	cards.shuffle(deck);
+	deck.render({immediate:true});
 	hand.dealStartingHand();
 	
 	// Create 9 cards for the tower floor
 	window.setTimeout(()=>{
-		for (let i=0; i<9; i++) {
-			let roomX = i % 3;
-			let roomY = Math.floor(i / 3);
-
-			const options = {
-				x: cards.options.table.clientWidth / 2 - 75 + roomX * 75,
-				y: 70 + roomY * 100
-			}; 
-			towerFloor.addRoom(new TowerRoom(options, deck.topCard(), towerFloor, roomX, roomY))
-		}
-
 		towerFloor.dealFloor();
 	}, 500);
+
+	// Show/hide various buttons
+	document.getElementById("start-buttons").classList.add("hidden");
+	document.getElementById("forfeit").classList.remove("hidden");
+	document.getElementById("tower-floor").classList.remove("hidden");
+	document.getElementById("card-hand").classList.remove("hidden");
 }
 
-initSerpentsTower();
-newGame();
+function endGame() {
+	deck.clearCards();
+	hand.clearCards();
+	towerFloor.clearCards();
+	discardPile.clearCards();
+
+	document.getElementById("forfeit").classList.add("hidden");
+	document.getElementById("tower-floor").classList.add("hidden");
+	document.getElementById("card-hand").classList.add("hidden");
+	document.getElementById("start-buttons").classList.remove("hidden");
+}
 
 function attack(card, room) {
 	// Get ranks
@@ -299,21 +386,17 @@ function attack(card, room) {
 		
 		// Move room to hand, hand to discard
 		card.el.classList.remove("hand");
-		//room.el.classList.remove("floor");
-		//room.el.classList.add("hand");
 
 		// Move cards around
 		card.moveTo(roomContainer.x, roomContainer.y, globalSpeed);
 		window.setTimeout(()=>{
 			card.rotate(Math.random() * 20 - 10);
 			card.moveTo(discardPile.x, discardPile.y, globalSpeed);
+			card.moveToFront();
+			discardPile.push(card);
 		}, globalSpeed)
 
-		
-
 		// Remove card from hand
-		//room.container = newHand;
-		//room.container[0] = room;
 		card.container = undefined;
 	}
 }
@@ -341,7 +424,9 @@ function flip(dataRoom) {
 				neighbourCount += 1;
 			}
 			if (neighbourCount == 0) {
+				discardPile.push(roomCard);
 				roomCard.moveTo(discardPile.x, discardPile.y, globalSpeed);
+				roomCard.moveToFront();
 				roomCard.rotate(Math.random() * 20 - 10);
 				roomCard.el.classList.remove("selected", "hand", "floor");
 				roomCard.el.removeAttribute("data-room");
@@ -349,60 +434,22 @@ function flip(dataRoom) {
 		} else {
 			// Reveal room
 			roomCard.showCard();
-			//roomCard.container.click(clickRoom);
-			//roomCard.el.classList.add("room");
 		}
 	}
 }
 
-
-
-/*
-//Now lets create a couple of hands, one face down, one face up.
-upperhand = new cards.Hand({faceUp:false, y:60});
-lowerhand = new cards.Hand({faceUp:true,  y:340});
-
-//Lets add a discard pile
-discardPile = new cards.Deck({faceUp:true});
-discardPile.x += 50;
-
-
-//Let's deal when the Deal button is pressed:
-document.getElementById("deal").addEventListener("click", ()=>{
-	//Deck has a built in method to deal to hands.
-	document.getElementById("deal").style.display = "none";
-	deck.deal(5, [upperhand, lowerhand], 50, function() {
-		//This is a callback function, called when the dealing
-		//is done.
-		discardPile.addCard(deck.topCard());
-		discardPile.render();
-	});
-})
-
-
-//When you click on the top card of a deck, a card is added
-//to your hand
-deck.click(function(card){
-	if (card === deck.topCard()) {
-		lowerhand.addCard(deck.topCard());
-		lowerhand.render();
-	}
+document.getElementById("easy").addEventListener("click", ()=>{
+	newGame(0);
 });
 
-//Finally, when you click a card in your hand, if it's
-//the same suit or rank as the top card of the discard pile
-//then it's added to it
-lowerhand.click(function(card){
-	if (card.suit == discardPile.topCard().suit
-		|| card.rank == discardPile.topCard().rank) {
-		discardPile.addCard(card);
-		discardPile.render();
-		lowerhand.render();
-	}
+document.getElementById("medium").addEventListener("click", ()=>{
+	newGame(1);
 });
 
+document.getElementById("hard").addEventListener("click", ()=>{
+	newGame(2);
+});
 
-//So, that should give you some idea about how to render a card game.
-//Now you just need to write some logic around who can play when etc...
-//Good luck :)
-*/
+document.getElementById("forfeit").addEventListener("click", ()=>{
+	endGame();
+});
